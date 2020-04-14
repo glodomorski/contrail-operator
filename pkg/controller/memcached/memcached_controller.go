@@ -248,6 +248,13 @@ func memcachedContainer(memcachedCR *contrail.Memcached) core.Container {
 		Name:            "memcached",
 		Image:           getImage(memcachedCR, "memcached"),
 		ImagePullPolicy: core.PullAlways,
+		Command: []string{"/usr/local/bin/memcached", "-vv",
+			"-l", "0.0.0.0",
+			"-p", fmt.Sprint(memcachedCR.Spec.ServiceConfiguration.GetListenPort()),
+			"-c", fmt.Sprint(memcachedCR.Spec.ServiceConfiguration.ConnectionLimit),
+			"-U", "0",
+			"-m", fmt.Sprint(memcachedCR.Spec.ServiceConfiguration.MaxMemory),
+		},
 		Env: []core.EnvVar{{
 			Name:  "KOLLA_SERVICE_NAME",
 			Value: "memcached",
