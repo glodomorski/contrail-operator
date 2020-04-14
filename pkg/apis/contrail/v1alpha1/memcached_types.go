@@ -11,18 +11,20 @@ type MemcachedSpec struct {
 
 // MemcachedStatus defines the observed state of Memcached
 type MemcachedStatus struct {
-	Active bool   `json:"active,omitempty"`
-	Node   string `json:"node,omitempty"`
+	Active bool     `json:"active,omitempty"`
+	Node   string   `json:"node,omitempty"`
+	IPs    []string `json:"ips,omitempty"`
 }
 
 type MemcachedConfiguration struct {
-	Container Container `json:"container"`
+	Containers map[string]*Container `json:"containers,omitempty"`
 	// +optional
 	ListenPort int32 `json:"listenPort,omitempty"`
 	// +optional
 	ConnectionLimit int32 `json:"connectionLimit,omitempty"`
 	// +optional
-	MaxMemory int32 `json:"maxMemory,omitempty"`
+	MaxMemory   int32 `json:"maxMemory,omitempty"`
+	HostNetwork *bool `json:"hostNetwork,omitempty" protobuf:"varint,11,opt,name=hostNetwork"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

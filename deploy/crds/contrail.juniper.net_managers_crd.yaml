@@ -1121,24 +1121,15 @@ spec:
                             connectionLimit:
                               format: int32
                               type: integer
-                            container:
-                              description: Container defines name, image and command.
-                              properties:
-                                command:
-                                  items:
-                                    type: string
-                                  type: array
-                                image:
-                                  type: string
-                              type: object
+                            containers: {}
+                            hostNetwork:
+                              type: boolean
                             listenPort:
                               format: int32
                               type: integer
                             maxMemory:
                               format: int32
                               type: integer
-                          required:
-                          - container
                           type: object
                       required:
                       - serviceConfiguration
@@ -1148,6 +1139,10 @@ spec:
                       properties:
                         active:
                           type: boolean
+                        ips:
+                          items:
+                            type: string
+                          type: array
                         node:
                           type: string
                       type: object
