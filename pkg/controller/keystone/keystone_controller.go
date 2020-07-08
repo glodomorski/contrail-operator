@@ -3,7 +3,6 @@ package keystone
 import (
 	"context"
 	"fmt"
-
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -120,6 +119,30 @@ func (r *ReconcileKeystone) Reconcile(request reconcile.Request) (reconcile.Resu
 		return reconcile.Result{}, nil
 	}
 
+	svc := &core.Service{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "keystone-service",
+			Namespace: request.Namespace,
+			Labels: map[string]string{
+				"run": "keystone",
+			},
+		},
+	}
+	if _, err := controllerutil.CreateOrUpdate(context.TODO(), r.client, svc, func() error {
+		svc.Spec.Type = core.ServiceTypeClusterIP
+		svc.Spec.Ports = []core.ServicePort{
+			{
+				Port: 5555,
+				Protocol: core.ProtocolTCP,
+			},
+		}
+		svc.Spec.Selector = map[string]string{
+			"run": "keystone",
+		}
+		return nil
+	}); err != nil {
+		return reconcile.Result{}, err
+	}
 	keystonePods, err := r.listKeystonePods(keystone.Name)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to list command pods: %v", err)
@@ -375,6 +398,11 @@ func newKeystoneSTS(cr *contrail.Keystone) *apps.StatefulSet {
 		Spec: apps.StatefulSetSpec{
 			Selector: &meta.LabelSelector{},
 			Template: core.PodTemplateSpec{
+				ObjectMeta: meta.ObjectMeta{
+				Labels: map[string]string{
+					"run": "keystone",
+				},
+				},
 				Spec: core.PodSpec{
 					DNSPolicy: core.DNSClusterFirst,
 					InitContainers: []core.Container{
@@ -537,8 +565,17 @@ func (r *ReconcileKeystone) ensureCertificatesExist(keystone *contrail.Keystone,
 	if keystone.Spec.CommonConfiguration.HostNetwork != nil {
 		hostNetwork = *keystone.Spec.CommonConfiguration.HostNetwork
 	}
+	labelSelector := labels.SelectorFromSet(map[string]string{"run": "keystone"})
+	listOpts := client.ListOptions{LabelSelector: labelSelector}
+	services := &core.ServiceList{}
+	if err := r.client.List(context.TODO(), services, &listOpts); err != nil {
+		return err
+	}
+	if len(services.Items) == 0 {
+		return fmt.Errorf("service is not created yet")
+	}
 	//TODO replace empty serviceIP with Cluster IP when it will be created
-	return certificates.NewCertificateWithServiceIP(r.client, r.scheme, keystone, pods, "", "keystone", hostNetwork).EnsureExistsAndIsSigned()
+	return certificates.NewCertificateWithServiceIP(r.client, r.scheme, keystone, pods, services.Items[0].Spec.ClusterIP, "keystone", hostNetwork).EnsureExistsAndIsSigned()
 }
 
 func (r *ReconcileKeystone) listKeystonePods(keystoneName string) (*core.PodList, error) {
