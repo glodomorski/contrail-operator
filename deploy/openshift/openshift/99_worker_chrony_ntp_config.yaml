@@ -1,0 +1,19 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: 99-worker-chrony
+spec:
+  config:
+    ignition:
+      version: 2.2.0
+    storage:
+      files:
+      - filesystem: root
+        path: /etc/chrony.conf
+        mode: 0744
+        user:
+          name: root
+        contents:
+          source: data:,%23%20Use%20specified%20server%0Aserver%20time.cloudflare.com%20iburst%0A%0A%23%20Record%20the%20rate%20at%20which%20the%20system%20clock%20gains%2Flosses%20time.%0Adriftfile%20%2Fvar%2Flib%2Fchrony%2Fdrift%0A%0A%23%20Allow%20the%20system%20clock%20to%20be%20stepped%20in%20the%20first%20three%20updates%0A%23%20if%20its%20offset%20is%20larger%20than%201%20second.%0Amakestep%201.0%203%0A%0A%23%20Enable%20kernel%20synchronization%20of%20the%20real-time%20clock%20%28RTC%29.%0Artcsync%0A%0A%23%20Enable%20hardware%20timestamping%20on%20all%20interfaces%20that%20support%20it.%0A%23hwtimestamp%20%2A%0A%0A%23%20Increase%20the%20minimum%20number%20of%20selectable%20sources%20required%20to%20adjust%0A%23%20the%20system%20clock.%0A%23minsources%202%0A%0A%23%20Allow%20NTP%20client%20access%20from%20local%20network.%0A%23allow%20192.168.0.0%2F16%0A%0A%23%20Serve%20time%20even%20if%20not%20synchronized%20to%20a%20time%20source.%0A%23local%20stratum%2010%0A%0A%23%20Specify%20file%20containing%20keys%20for%20NTP%20authentication.%0Akeyfile%20%2Fetc%2Fchrony.keys%0A%0A%23%20Get%20TAI-UTC%20offset%20and%20leap%20seconds%20from%20the%20system%20tz%20database.%0Aleapsectz%20right%2FUTC%0A%0A%23%20Specify%20directory%20for%20log%20files.%0Alogdir%20%2Fvar%2Flog%2Fchrony%0A%0A%23%20Select%20which%20information%20is%20logged.%0A%23log%20measurements%20statistics%20tracking
