@@ -40,6 +40,13 @@ The last line `./create_manifest.sh` generates file `deploy/1-create-operator.ya
       chmod -R 755 build/bin build/_output
       <rebuild operator>
 
+* Bazel run returns error:
+        
+        stdout: stderr: xcodebuild: error: SDK "macosx10.10" cannot be located.
+        xcodebuild: error: SDK "macosx10.10" cannot be located.
+        xcrun: error: unable to lookup item 'Path' in SDK 'macosx10.10'
+     Solution: add to you command `--macos_sdk_version=10.15`
+
 
 ## Updating Contrail operator
     operator-sdk build contrail-operator
