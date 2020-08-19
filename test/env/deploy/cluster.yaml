@@ -168,6 +168,8 @@ spec:
         name: command
       spec:
         commonConfiguration:
+          nodeSelector:
+            node-role.kubernetes.io/master: ""
           activate: true
           create: true
           hostNetwork: true
