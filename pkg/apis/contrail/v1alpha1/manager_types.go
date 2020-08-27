@@ -16,8 +16,8 @@ type ManagerSpec struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	CommonConfiguration ManagerConfiguration `json:"commonConfiguration,omitempty"`
-	Services            Services            `json:"services,omitempty"`
-	KeystoneSecretName  string              `json:"keystoneSecretName,omitempty"`
+	Services            Services             `json:"services,omitempty"`
+	KeystoneSecretName  string               `json:"keystoneSecretName,omitempty"`
 }
 
 // Services defines the desired state of Services.
@@ -37,6 +37,7 @@ type Services struct {
 	Keystone         *Keystone         `json:"keystone,omitempty"`
 	Swift            *Swift            `json:"swift,omitempty"`
 	Memcached        *Memcached        `json:"memcached,omitempty"`
+	Patroni          *Patroni          `json:"patroni,omitempty"`
 }
 
 // ManagerConfiguration is the common services struct.
@@ -81,7 +82,8 @@ type ManagerStatus struct {
 	Swift            *ServiceStatus   `json:"swift,omitempty"`
 	Command          *ServiceStatus   `json:"command,omitempty"`
 	Memcached        *ServiceStatus   `json:"memcached,omitempty"`
-	Replicas int32 `json:"replicas,omitempty"`
+	Patroni          *ServiceStatus   `json:"patroni,omitempty"`
+	Replicas         int32            `json:"replicas,omitempty"`
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
