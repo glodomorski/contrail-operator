@@ -1487,6 +1487,10 @@ func (r *ReconcileManager) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, err
 	}
 
+	if err = r.processPatroni(instance, replicaNumber); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if err = r.processMemcached(instance, replicaNumber); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -1633,6 +1637,27 @@ func (r *ReconcileManager) processSwift(manager *v1alpha1.Manager, replicas *int
 	status := &v1alpha1.ServiceStatus{}
 	status.Active = &swift.Status.Active
 	manager.Status.Swift = status
+	return err
+}
+
+func (r *ReconcileManager) processPatroni(manager *v1alpha1.Manager, replicas *int32) error {
+	if manager.Spec.Services.Patroni == nil {
+		return nil
+	}
+	patroni := &v1alpha1.Patroni{}
+	patroni.ObjectMeta = manager.Spec.Services.Patroni.ObjectMeta
+	patroni.ObjectMeta.Namespace = manager.Namespace
+	_, err := controllerutil.CreateOrUpdate(context.Background(), r.client, patroni, func() error {
+		patroni.Spec = manager.Spec.Services.Patroni.Spec
+		patroni.Spec.CommonConfiguration = utils.MergeCommonConfiguration(manager.Spec.CommonConfiguration, patroni.Spec.CommonConfiguration)
+		if patroni.Spec.CommonConfiguration.Replicas == nil {
+			patroni.Spec.CommonConfiguration.Replicas = replicas
+		}
+		return controllerutil.SetControllerReference(manager, patroni, r.scheme)
+	})
+	status := &v1alpha1.ServiceStatus{}
+	status.Active = &patroni.Status.Active
+	manager.Status.Patroni = status
 	return err
 }
 
