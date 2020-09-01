@@ -420,7 +420,7 @@ func newPostgres(active bool) *contrail.Postgres {
 		},
 		Status: contrail.PostgresStatus{
 			Status: contrail.Status{
-				Active:   active,
+				Active: active,
 			},
 			Endpoint: "10.219.10.10",
 		},
