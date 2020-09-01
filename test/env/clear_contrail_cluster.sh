@@ -11,5 +11,5 @@ for p in $(docker ps --filter name=kind-control -q)
 do
     docker exec $p rm -rf /var/lib/cassandra
     docker exec $p rm -rf /var/lib/zookeeper
-    docker exec $p rm -rf /var/lib/postgres
+    docker exec $p rm -rf /mnt/postgres
 done
