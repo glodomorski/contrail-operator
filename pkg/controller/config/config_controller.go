@@ -4,22 +4,22 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/Juniper/contrail-operator/pkg/apis/contrail/v1alpha1"
-	"github.com/Juniper/contrail-operator/pkg/certificates"
-
-	"github.com/Juniper/contrail-operator/pkg/controller/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/Juniper/contrail-operator/pkg/apis/contrail/v1alpha1"
+	"github.com/Juniper/contrail-operator/pkg/certificates"
+	"github.com/Juniper/contrail-operator/pkg/controller/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -205,6 +205,16 @@ func (r *ReconcileConfig) Reconcile(request reconcile.Request) (reconcile.Result
 
 	if !cassandraActive || !rabbitmqActive || !zookeeperActive || cassandraUpgrading || zookeeperUpgrading || rabbitmqUpgrading {
 		return reconcile.Result{}, nil
+	}
+
+	configApiService, err := r.ensureServiceExists(config, "api", 8082)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	configAnalyticsService, err := r.ensureServiceExists(config, "analytics", 8081)
+	if err != nil {
+		return reconcile.Result{}, err
 	}
 
 	currentConfigMap, currentConfigExists := config.CurrentConfigMapExists(request.Name+"-"+instanceType+"-configmap", r.Client, r.Scheme, request)
@@ -692,7 +702,7 @@ func (r *ReconcileConfig) Reconcile(request reconcile.Request) (reconcile.Result
 			return reconcile.Result{}, err
 		}
 
-		if err = config.ManageNodeStatus(podIPMap, r.Client); err != nil {
+		if err = config.ManageNodeStatus(podIPMap, configApiService.Spec.ClusterIP, configAnalyticsService.Spec.ClusterIP, r.Client); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -721,4 +731,29 @@ func (r *ReconcileConfig) Reconcile(request reconcile.Request) (reconcile.Result
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileConfig) ensureServiceExists(config *v1alpha1.Config, serviceName string, port int32) (*corev1.Service, error) {
+	configService := newConfigService(config, serviceName)
+	_, err := controllerutil.CreateOrUpdate(context.Background(), r.Client, configService, func() error {
+		configService.Spec.Ports = []corev1.ServicePort{
+			{Port: port, Protocol: "TCP"},
+		}
+		configService.Spec.Selector = map[string]string{"contrail_manager": "config"}
+		return controllerutil.SetControllerReference(config, configService, r.Scheme)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return configService, nil
+}
+
+func newConfigService(cr *v1alpha1.Config, name string) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-" + name,
+			Namespace: cr.Namespace,
+			Labels:    map[string]string{"service": cr.Name},
+		},
+	}
 }

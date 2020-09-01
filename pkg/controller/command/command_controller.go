@@ -128,12 +128,17 @@ func (r *ReconcileCommand) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, nil
 	}
 
+	commandService, err := r.ensureServiceExists(command)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	commandPods, err := r.listCommandsPods(command.Name)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to list command pods: %v", err)
 	}
 
-	if err := r.ensureCertificatesExist(command, commandPods, instanceType); err != nil {
+	commandClusterIP := commandService.Spec.ClusterIP
+	if err := r.ensureCertificatesExist(command, commandPods, instanceType, commandClusterIP); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -192,12 +197,8 @@ func (r *ReconcileCommand) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, nil
 	}
 
-	commandConfigName := command.Name + "-command-configmap"
-	ips := command.Status.IPs
-	if len(ips) == 0 {
-		ips = []string{"0.0.0.0"}
-	}
-	if err = r.configMap(commandConfigName, "command", command, adminPasswordSecret, swiftSecret).ensureCommandConfigExist(ips[0], keystoneAddress, keystonePort, keystoneAuthProtocol, psql.Status.Endpoint); err != nil {
+	config, err := r.getConfig(command)
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -206,6 +207,15 @@ func (r *ReconcileCommand) Reconcile(request reconcile.Request) (reconcile.Resul
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+	}
+
+	commandConfigName := command.Name + "-command-configmap"
+	var podIPs []string
+	for _, pod := range commandPods.Items {
+		podIPs = append(podIPs, pod.Status.PodIP)
+	}
+	if err = r.configMap(commandConfigName, "command", command, adminPasswordSecret, swiftSecret).ensureCommandConfigExist(podIPs[0], keystoneAddress, keystonePort, keystoneAuthProtocol, psql.Status.Endpoint, config.Status.ConfigApiEndpoint, config.Status.AnalyticsEndpoint); err != nil {
+		return reconcile.Result{}, err
 	}
 
 	configVolumeName := request.Name + "-" + instanceType + "-volume"
@@ -282,7 +292,7 @@ func (r *ReconcileCommand) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, err
 	}
 
-	if err = r.updateStatus(command, deployment); err != nil {
+	if err = r.updateStatus(command, deployment, commandClusterIP); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -461,7 +471,7 @@ func getCommand(containers []*contrail.Container, containerName string) []string
 
 func (r *ReconcileCommand) updateStatus(
 	command *contrail.Command,
-	deployment *apps.Deployment,
+	deployment *apps.Deployment, cip string,
 ) error {
 
 	pods := core.PodList{}
@@ -469,13 +479,7 @@ func (r *ReconcileCommand) updateStatus(
 	if err := r.client.List(context.Background(), &pods, labels); err != nil {
 		return err
 	}
-	command.Status.IPs = []string{}
-	for _, pod := range pods.Items {
-		if pod.Status.PodIP != "" {
-			command.Status.IPs = append(command.Status.IPs, pod.Status.PodIP)
-		}
-	}
-
+	command.Status.Endpoint = cip
 	command.Status.Active = false
 	intendentReplicas := int32(1)
 	if deployment.Spec.Replicas != nil {
@@ -516,12 +520,12 @@ func (r *ReconcileCommand) ensureContrailSwiftContainerExists(command *contrail.
 	return nil
 }
 
-func (r *ReconcileCommand) ensureCertificatesExist(command *contrail.Command, pods *core.PodList, instanceType string) error {
+func (r *ReconcileCommand) ensureCertificatesExist(command *contrail.Command, pods *core.PodList, instanceType, serviceIP string) error {
 	hostNetwork := true
 	if command.Spec.CommonConfiguration.HostNetwork != nil {
 		hostNetwork = *command.Spec.CommonConfiguration.HostNetwork
 	}
-	return certificates.NewCertificate(r.client, r.scheme, command, pods, instanceType, hostNetwork).EnsureExistsAndIsSigned()
+	return certificates.NewCertificateWithServiceIP(r.client, r.scheme, command, pods, serviceIP, instanceType, hostNetwork).EnsureExistsAndIsSigned()
 }
 
 func (r *ReconcileCommand) listCommandsPods(commandName string) (*core.PodList, error) {
@@ -532,4 +536,39 @@ func (r *ReconcileCommand) listCommandsPods(commandName string) (*core.PodList, 
 		return &core.PodList{}, err
 	}
 	return pods, nil
+}
+
+func (r *ReconcileCommand) getConfig(command *contrail.Command) (*contrail.Config, error) {
+	config := &contrail.Config{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: command.GetNamespace(),
+		Name:      command.Spec.ServiceConfiguration.ConfigInstance,
+	}, config)
+
+	return config, err
+}
+
+func (r *ReconcileCommand) ensureServiceExists(command *contrail.Command) (*core.Service, error) {
+	commnadService := newCommandService(command)
+	_, err := controllerutil.CreateOrUpdate(context.Background(), r.client, commnadService, func() error {
+		commnadService.Spec.Ports = []core.ServicePort{
+			{Port: int32(9091), Protocol: "TCP"},
+		}
+		commnadService.Spec.Selector = map[string]string{"contrail_manager": "command"}
+		return controllerutil.SetControllerReference(command, commnadService, r.scheme)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return commnadService, nil
+}
+
+func newCommandService(cr *contrail.Command) *core.Service {
+	return &core.Service{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      cr.Name + "-service",
+			Namespace: cr.Namespace,
+			Labels:    map[string]string{"service": cr.Name},
+		},
+	}
 }
