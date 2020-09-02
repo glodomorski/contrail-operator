@@ -821,7 +821,7 @@ server:
   dynamic_proxy_path: proxy
   proxy:
     /contrail:
-    - 10.10.10.10
+    - https://10.10.10.10
   notify_etcd: false
 
 no_auth: false
@@ -1070,8 +1070,8 @@ resources:
       parent_uuid: 53494ca8-f40c-11e9-83ae-38c986460fd4
       parent_type: contrail-cluster
       prefix: telemetry
-      private_url: 10.10.10.20
-      public_url: 10.10.10.20
+      private_url: https://10.10.10.20
+      public_url: https://10.10.10.20
     kind: endpoint
   - data:
       uuid: b62a2f34-c6f7-4a25-ae04-f312d2747291
@@ -1083,8 +1083,8 @@ resources:
       parent_uuid: 53494ca8-f40c-11e9-83ae-38c986460fd4
       parent_type: contrail-cluster
       prefix: config
-      private_url: 10.10.10.10
-      public_url: 10.10.10.10
+      private_url: https://10.10.10.10
+      public_url: https://10.10.10.10
     kind: endpoint
   - data:
       uuid: b62a2f34-c6f7-4a25-eeee-f312d2747291
@@ -1096,8 +1096,8 @@ resources:
       parent_uuid: 53494ca8-f40c-11e9-83ae-38c986460fd4
       parent_type: contrail-cluster
       prefix: keystone
-      private_url: https://10.0.2.16:5555
-      public_url: https://10.0.2.16:5555
+      private_url: https://10.0.2.16
+      public_url: https://10.0.2.16
     kind: endpoint
   - data:
       uuid: b62a2f34-c6f7-4a25-efef-f312d2747291
