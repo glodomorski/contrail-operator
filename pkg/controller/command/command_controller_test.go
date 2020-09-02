@@ -42,6 +42,7 @@ func TestCommand(t *testing.T) {
 		"Swift secret name is empty": {
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwiftSecret(),
@@ -74,6 +75,7 @@ func TestCommand(t *testing.T) {
 		"no Postgres": {
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newAdminSecret(),
 				newSwiftSecret(),
 				newSwift(false),
@@ -83,6 +85,7 @@ func TestCommand(t *testing.T) {
 		"no Swift": {
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwiftSecret(),
@@ -92,6 +95,7 @@ func TestCommand(t *testing.T) {
 		"no Keystone": {
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwiftSecret(),
@@ -101,6 +105,7 @@ func TestCommand(t *testing.T) {
 		"no Swift secret": {
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwift(false),
@@ -110,6 +115,7 @@ func TestCommand(t *testing.T) {
 		"no admin secret": {
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newSwiftSecret(),
 				newSwift(false),
@@ -119,6 +125,7 @@ func TestCommand(t *testing.T) {
 		"no Swift container exists": {
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwiftSecret(),
@@ -148,6 +155,7 @@ func TestCommand(t *testing.T) {
 	t.Run("Swift secret name is empty", func(t *testing.T) {
 		initObjs := []runtime.Object{
 			newCommand(),
+			newConfig(true),
 			newPostgres(true),
 			newAdminSecret(),
 			newSwiftSecret(),
@@ -181,6 +189,7 @@ func TestCommand(t *testing.T) {
 			name: "create a new deployment",
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwiftSecret(),
@@ -196,6 +205,7 @@ func TestCommand(t *testing.T) {
 			name: "create a new deployment and check swift containers existence",
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwiftSecret(),
@@ -212,6 +222,7 @@ func TestCommand(t *testing.T) {
 			name: "create a new deployment with inactive Keystone",
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newPostgres(true),
 				newAdminSecret(),
 				newSwiftSecret(),
@@ -231,6 +242,7 @@ func TestCommand(t *testing.T) {
 				newDeployment(apps.DeploymentStatus{
 					ReadyReplicas: 0,
 				}),
+				newConfig(true),
 				newPostgres(true),
 				newSwift(false),
 				newAdminSecret(),
@@ -246,6 +258,7 @@ func TestCommand(t *testing.T) {
 			name: "update command status to false",
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newDeployment(apps.DeploymentStatus{
 					ReadyReplicas: 0,
 				}),
@@ -264,6 +277,7 @@ func TestCommand(t *testing.T) {
 			name: "update command status to active",
 			initObjs: []runtime.Object{
 				newCommand(),
+				newConfig(true),
 				newDeployment(apps.DeploymentStatus{
 					ReadyReplicas: 1,
 				}),
@@ -396,6 +410,7 @@ func newCommand() *contrail.Command {
 				PostgresInstance: "command-db",
 				KeystoneInstance: "keystone",
 				SwiftInstance:    "swift",
+				ConfigInstance:   "config",
 				Containers: []*contrail.Container{
 					{Name: "init", Image: "registry:5000/contrail-command"},
 					{Name: "api", Image: "registry:5000/contrail-command"},
@@ -421,6 +436,24 @@ func newPostgres(active bool) *contrail.Postgres {
 		Status: contrail.PostgresStatus{
 			Active:   active,
 			Endpoint: "10.219.10.10",
+		},
+	}
+}
+
+func newConfig(active bool) *contrail.Config {
+	return &contrail.Config{
+		TypeMeta: meta.TypeMeta{
+			Kind:       "Config",
+			APIVersion: "contrail.juniper.net/v1alpha1",
+		},
+		ObjectMeta: meta.ObjectMeta{
+			Name:      "config",
+			Namespace: "default",
+		},
+		Status: contrail.ConfigStatus{
+			Active:            &active,
+			ConfigApiEndpoint: "10.10.10.10",
+			AnalyticsEndpoint: "10.10.10.20",
 		},
 	}
 }
@@ -788,7 +821,7 @@ server:
   dynamic_proxy_path: proxy
   proxy:
     /contrail:
-    - https://0.0.0.0:8082
+    - 10.10.10.10
   notify_etcd: false
 
 no_auth: false
@@ -1037,8 +1070,8 @@ resources:
       parent_uuid: 53494ca8-f40c-11e9-83ae-38c986460fd4
       parent_type: contrail-cluster
       prefix: telemetry
-      private_url: http://0.0.0.0:8081
-      public_url: http://0.0.0.0:8081
+      private_url: 10.10.10.20
+      public_url: 10.10.10.20
     kind: endpoint
   - data:
       uuid: b62a2f34-c6f7-4a25-ae04-f312d2747291
@@ -1050,8 +1083,8 @@ resources:
       parent_uuid: 53494ca8-f40c-11e9-83ae-38c986460fd4
       parent_type: contrail-cluster
       prefix: config
-      private_url: https://0.0.0.0:8082
-      public_url: https://0.0.0.0:8082
+      private_url: 10.10.10.10
+      public_url: 10.10.10.10
     kind: endpoint
   - data:
       uuid: b62a2f34-c6f7-4a25-eeee-f312d2747291

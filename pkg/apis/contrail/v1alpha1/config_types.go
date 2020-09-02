@@ -721,8 +721,7 @@ func (c *Config) WaitForPeerPods(request reconcile.Request, reconcileClient clie
 	return nil
 }
 
-func (c *Config) ManageNodeStatus(podNameIPMap map[string]string, configApiEndpoint string, analyticsEndpoint string,
-	client client.Client) error {
+func (c *Config) ManageNodeStatus(podNameIPMap map[string]string, client client.Client, configApiEndpoint, analyticsEndpoint string) error {
 	c.Status.Nodes = podNameIPMap
 	configConfigInterface := c.ConfigurationParameters()
 	configConfig := configConfigInterface.(ConfigConfiguration)
