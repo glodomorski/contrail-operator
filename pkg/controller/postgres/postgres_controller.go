@@ -139,6 +139,11 @@ func (r *ReconcilePostgres) Reconcile(request reconcile.Request) (reconcile.Resu
 		return reconcile.Result{}, err
 	}
 
+	initConfigMapName := postgres.Name + "-init-config"
+	if err = r.configMap(initConfigMapName, "postgres", postgres).ensureInitConfigExists(); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	postgresPods, err := r.listPostgresPods(postgres.Name)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to list Postgres pods: %v", err)
@@ -173,7 +178,7 @@ func (r *ReconcilePostgres) Reconcile(request reconcile.Request) (reconcile.Resu
 	}
 	serviceAccountName := "serviceaccount-postgres"
 	rootPassSecretName := postgres.Spec.ServiceConfiguration.RootPassSecretName
-	statefulSet, err := r.createOrUpdateSts(postgres, postgresService, replicationPassSecretName, rootPassSecretName, serviceAccountName)
+	statefulSet, err := r.createOrUpdateSts(postgres, postgresService, replicationPassSecretName, rootPassSecretName, serviceAccountName, initConfigMapName)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -276,7 +281,7 @@ func (r *ReconcilePostgres) ensureServicesExist(postgres *contrail.Postgres) (*c
 }
 
 func (r *ReconcilePostgres) createOrUpdateSts(postgres *contrail.Postgres, service *core.Service,
-	replicationPassSecretName, rootPassSecretName, serviceAccountName string) (*apps.StatefulSet, error) {
+	replicationPassSecretName, rootPassSecretName, serviceAccountName, initConfigMapName string) (*apps.StatefulSet, error) {
 
 	statefulSet := &apps.StatefulSet{}
 	statefulSet.Namespace = postgres.Namespace
@@ -337,7 +342,7 @@ func (r *ReconcilePostgres) createOrUpdateSts(postgres *contrail.Postgres, servi
 
 	var replicationUserEnv = core.EnvVar{
 		Name:  "PATRONI_REPLICATION_USERNAME",
-		Value: "standby",
+		Value: "root",
 	}
 
 	var replicationPassEnv = core.EnvVar{
@@ -345,9 +350,9 @@ func (r *ReconcilePostgres) createOrUpdateSts(postgres *contrail.Postgres, servi
 		ValueFrom: &core.EnvVarSource{
 			SecretKeyRef: &core.SecretKeySelector{
 				LocalObjectReference: core.LocalObjectReference{
-					Name: replicationPassSecretName,
+					Name: rootPassSecretName,
 				},
-				Key: "replication-password",
+				Key: "password",
 			},
 		},
 	}
@@ -355,11 +360,6 @@ func (r *ReconcilePostgres) createOrUpdateSts(postgres *contrail.Postgres, servi
 	var superuserEnv = core.EnvVar{
 		Name:  "PATRONI_SUPERUSER_USERNAME",
 		Value: "root",
-	}
-
-	var postgresDBEnv = core.EnvVar{
-		Name:  "POSTGRES_DB",
-		Value: "contrail_test",
 	}
 
 	var superuserPassEnv = core.EnvVar{
@@ -406,10 +406,19 @@ func (r *ReconcilePostgres) createOrUpdateSts(postgres *contrail.Postgres, servi
 				superuserEnv,
 				superuserPassEnv,
 				dataDirEnv,
-				postgresDBEnv,
 				postgresListenAddressEnv,
 				restApiListenAddressEnv,
 				pgpassEnv,
+			},
+			Ports: []core.ContainerPort{
+				{
+					ContainerPort: 5432,
+					Protocol:      core.ProtocolTCP,
+				},
+				{
+					ContainerPort: 8008,
+					Protocol:      core.ProtocolTCP,
+				},
 			},
 			ImagePullPolicy: "Always",
 			VolumeMounts: []core.VolumeMount{
@@ -422,6 +431,11 @@ func (r *ReconcilePostgres) createOrUpdateSts(postgres *contrail.Postgres, servi
 				{
 					Name:      postgres.Name + "-secret-certificates",
 					MountPath: "/var/lib/ssl_certificates",
+				},
+				{
+					Name:      "init-config",
+					MountPath: "/entrypoint.sh",
+					SubPath:   "entrypoint.sh",
 				},
 				{
 					Name:      csrSignerCaVolumeName,
@@ -511,6 +525,16 @@ func (r *ReconcilePostgres) createOrUpdateSts(postgres *contrail.Postgres, servi
 					ConfigMap: &core.ConfigMapVolumeSource{
 						LocalObjectReference: core.LocalObjectReference{
 							Name: certificates.SignerCAConfigMapName,
+						},
+					},
+				},
+			},
+			{
+				Name: "init-config",
+				VolumeSource: core.VolumeSource{
+					ConfigMap: &core.ConfigMapVolumeSource{
+						LocalObjectReference: core.LocalObjectReference{
+							Name: initConfigMapName,
 						},
 					},
 				},

@@ -356,7 +356,7 @@ func newSTS(name string) apps.StatefulSet {
 
 	var replicationUserEnv = core.EnvVar{
 		Name:  "PATRONI_REPLICATION_USERNAME",
-		Value: "standby",
+		Value: "root",
 	}
 
 	var replicationPassEnv = core.EnvVar{
@@ -364,9 +364,9 @@ func newSTS(name string) apps.StatefulSet {
 		ValueFrom: &core.EnvVarSource{
 			SecretKeyRef: &core.SecretKeySelector{
 				LocalObjectReference: core.LocalObjectReference{
-					Name: "postgres-postgres-replication-secret",
+					Name: "rootpass-secret",
 				},
-				Key: "replication-password",
+				Key: "password",
 			},
 		},
 	}
@@ -374,11 +374,6 @@ func newSTS(name string) apps.StatefulSet {
 	var superuserEnv = core.EnvVar{
 		Name:  "PATRONI_SUPERUSER_USERNAME",
 		Value: "root",
-	}
-
-	var postgresDBEnv = core.EnvVar{
-		Name:  "POSTGRES_DB",
-		Value: "contrail_test",
 	}
 
 	var superuserPassEnv = core.EnvVar{
@@ -505,6 +500,16 @@ func newSTS(name string) apps.StatefulSet {
 							Image:           "localhost:5000/patroni:1.6.5",
 							Name:            "patroni",
 							ImagePullPolicy: core.PullAlways,
+							Ports: []core.ContainerPort{
+								{
+									ContainerPort: 5432,
+									Protocol:      core.ProtocolTCP,
+								},
+								{
+									ContainerPort: 8008,
+									Protocol:      core.ProtocolTCP,
+								},
+							},
 							Env: []core.EnvVar{
 								nameEnv,
 								scopeEnv,
@@ -518,7 +523,6 @@ func newSTS(name string) apps.StatefulSet {
 								superuserEnv,
 								superuserPassEnv,
 								dataDirEnv,
-								postgresDBEnv,
 								postgresListenAddressEnv,
 								restApiListenAddressEnv,
 								pgpassEnv,
@@ -533,6 +537,11 @@ func newSTS(name string) apps.StatefulSet {
 								{
 									Name:      "postgres-secret-certificates",
 									MountPath: "/var/lib/ssl_certificates",
+								},
+								{
+									Name:      "init-config",
+									MountPath: "/entrypoint.sh",
+									SubPath:   "entrypoint.sh",
 								},
 								{
 									Name:      "postgres-csr-signer-ca",
@@ -569,6 +578,16 @@ func newSTS(name string) apps.StatefulSet {
 								ConfigMap: &core.ConfigMapVolumeSource{
 									LocalObjectReference: core.LocalObjectReference{
 										Name: certificates.SignerCAConfigMapName,
+									},
+								},
+							},
+						},
+						{
+							Name: "init-config",
+							VolumeSource: core.VolumeSource{
+								ConfigMap: &core.ConfigMapVolumeSource{
+									LocalObjectReference: core.LocalObjectReference{
+										Name: "postgres-init-config",
 									},
 								},
 							},

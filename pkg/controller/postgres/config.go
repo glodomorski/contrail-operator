@@ -75,7 +75,6 @@ postgresql:
       password: '${PATRONI_SUPERUSER_PASSWORD}'
     replication:
       password: '${PATRONI_REPLICATION_PASSWORD}'
-post_bootstrap: /home/postgres/post_init.sh
 __EOF__
 
 unset PATRONI_SUPERUSER_PASSWORD PATRONI_REPLICATION_PASSWORD
@@ -83,7 +82,7 @@ unset PATRONI_SUPERUSER_PASSWORD PATRONI_REPLICATION_PASSWORD
 exec /usr/bin/python3 /usr/local/bin/patroni /home/postgres/patroni.yml
 `))
 
-// todo !!
+// todo remove !!
 var postInit = template.Must(template.New("").Parse(`
 #!/bin/bash
 
